@@ -3,15 +3,22 @@
 #include <ucontext.h>
 #include <signal.h>
 
-void signal_handler(int signo, siginfo_t *si, void *data)
+void signal_handler(int signo, siginfo_t *si, void *ucp)
 {
- ucontext_t *uc = (ucontext_t *)data; // Set a local pointer to uc.
+ ucontext_t *uc = (ucontext_t *)ucp;
 
- printf("* Received a SIGILL\n");
- printf("* uc->uc_mcontext.regs->nip= %p\n", (void *) uc->uc_mcontext.regs->nip);
+ if (signo == SIGILL) {
+ 	printf(" * Received a SIGILL\n");
+ }  else if (signo == SIGTRAP) {
+	printf(" * Received a SIGTRAP\n");
+ } else {
+	printf(" * Unexpected signal, aborting...\n");
+	exit(1);
+ }
 
- uc->uc_mcontext.regs->nip += 4; // Skip illegal instruction 
- // uc->uc_mcontext.gp_regs[32] += 4; // Same as above ;-)
+ printf(" * uc->uc_mcontext.regs->nip= %p\n", (void *) uc->uc_mcontext.regs->nip);
+
+ uc->uc_mcontext.regs->nip += 4; // Skip illegal / trap instruction 
 }
 
 int main(void)
@@ -23,10 +30,17 @@ int main(void)
  sa.sa_flags = SA_SIGINFO;
  sa.sa_sigaction = signal_handler;
  sigaction(SIGILL , &sa, NULL);
+ sigaction(SIGTRAP, &sa, NULL);
 
  printf(" * Executing 'tcheck'...\n");
-
  asm ("tcheck 0;");
 
+ printf(" * Executing 'trap'...\n");
+ asm ("tbegin.;  trap;");
+
+ printf(" * Executing illegal...\n");
+ asm ("tbegin.; .long 0x0;");
+
+ printf(" * Exiting...\n");
  exit(0);
 }
